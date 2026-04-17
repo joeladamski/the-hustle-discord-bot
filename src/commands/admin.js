@@ -10,7 +10,7 @@ async function handleAdminCommands(message, context) {
   const [rawCommand, ...args] = message.content.slice(prefix.length).trim().split(/\s+/);
   const command = (rawCommand || '').toLowerCase();
 
-  if (!['setwelcome', 'setautorole', 'showconfig'].includes(command)) {
+  if (!['setwelcome', 'setautorole', 'showconfig', 'userstats', 'topactivity'].includes(command)) {
     return;
   }
 
@@ -29,6 +29,43 @@ async function handleAdminCommands(message, context) {
     await message.reply(
       `Current config:\n- autoRoleName: **${role}**\n- welcomeMessage: ${welcome}`
     );
+    return;
+  }
+
+  if (command === 'userstats') {
+    const firstMention = message.mentions.users.first();
+    const lookupUserId = firstMention?.id || args[0] || message.author.id;
+    const stats = await dbApi.fetchUserStats(lookupUserId);
+
+    if (!stats) {
+      await message.reply(`No stats found for user ID: ${lookupUserId}`);
+      return;
+    }
+
+    await message.reply(
+      `User stats for **${stats.username}** (${stats.userId}):\n` +
+      `- roleLevel: ${stats.roleLevel}\n` +
+      `- activityCount: ${stats.activityCount}\n` +
+      `- createdAt: ${stats.createdAt}\n` +
+      `- updatedAt: ${stats.updatedAt}`
+    );
+    return;
+  }
+
+  if (command === 'topactivity') {
+    const limit = Math.max(1, Math.min(10, Number.parseInt(args[0], 10) || 5));
+    const leaders = await dbApi.fetchTopActiveUsers(limit);
+
+    if (!leaders.length) {
+      await message.reply('No user activity has been recorded yet.');
+      return;
+    }
+
+    const leaderboard = leaders
+      .map((entry, index) => `${index + 1}. ${entry.username} (${entry.userId}) - ${entry.activityCount}`)
+      .join('\n');
+
+    await message.reply(`Top ${leaders.length} active users:\n${leaderboard}`);
     return;
   }
 

@@ -4,7 +4,16 @@ const fs = require('fs');
 const path = require('path');
 const { Client, GatewayIntentBits } = require('discord.js');
 const { loadStaticConfig } = require('./config');
-const { createDb, initDb, getSetting, upsertSetting } = require('./db');
+const {
+  createDb,
+  initDb,
+  getSetting,
+  upsertSetting,
+  upsertUser,
+  incrementUserActivity,
+  getUserStats,
+  listTopActiveUsers
+} = require('./db');
 const { onGuildMemberAdd } = require('./events/guildMemberAdd');
 const { handleAdminCommands } = require('./commands/admin');
 
@@ -57,6 +66,18 @@ const dbApi = {
   },
   async setWelcomeMessage(value) {
     await upsertSetting(db, 'welcomeMessage', value);
+  },
+  async ensureUser(user) {
+    await upsertUser(db, user);
+  },
+  async incrementActivity(user, amount = 1) {
+    await incrementUserActivity(db, { ...user, amount });
+  },
+  async fetchUserStats(userId) {
+    return getUserStats(db, userId);
+  },
+  async fetchTopActiveUsers(limit = 5) {
+    return listTopActiveUsers(db, limit);
   }
 };
 
@@ -95,6 +116,12 @@ async function start() {
     }
 
     try {
+      await dbApi.incrementActivity({
+        userId: message.author.id,
+        username: message.author.tag,
+        roleLevel: 1
+      });
+
       await handleAdminCommands(message, {
         prefix: commandPrefix,
         adminRoleName: staticConfig.adminRoleName,
