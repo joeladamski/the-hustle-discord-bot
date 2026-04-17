@@ -1,0 +1,5 @@
+{
+  "autoRoleName": "Fresh Ink",
+  "welcomeMessage": "Welcome {user} to **{server}**! You have been assigned the **{role}** role. Start introducing yourself and drop your first bars.",
+  "adminRoleName": "Admin"
+}
