@@ -1,64 +1,130 @@
-# The Hustle — Bot Core
+# The Hustle Discord Bot (Node.js + discord.js)
 
-The Hustle is not just a Discord server.  
-It is a structured creative system designed to develop, refine, and elevate lyrical talent through disciplined progression.
+Production-ready onboarding bot for Discord with:
+- Auto-role assignment for new users
+- Welcome message delivery
+- Join event logging
+- Config file defaults + runtime overrides stored in SQLite
+- Environment variable based secret management
+- Dockerized deployment
 
-This repository contains the core bot engine that powers The Hustle ecosystem.
+## 1) Architecture Plan
 
-## 🎯 Purpose
+### Components
+- **Discord Gateway Client (`src/index.js`)**
+  - Connects to Discord
+  - Registers event handlers and admin command handling
+- **Config Layer (`config/bot.config.json` + `src/config/index.js`)**
+  - Static defaults for role, welcome message, admin role
+- **Persistence Layer (`src/db/index.js`, SQLite)**
+  - Stores mutable runtime settings (`autoRoleName`, `welcomeMessage`)
+- **Join Workflow (`src/events/guildMemberAdd.js`)**
+  - Handles role assignment, welcome posting, and logging
+- **Admin Command Layer (`src/commands/admin.js`)**
+  - `!setautorole`, `!setwelcome`, `!showconfig`
 
-Most Discord communities are unstructured.  
-The Hustle is different.
+### Runtime Data Flow
+1. Bot starts and loads static config.
+2. DB initializes and seeds defaults if not present.
+3. On `guildMemberAdd`:
+   - Load current settings from DB
+   - Assign configured role
+   - Send welcome message to configured welcome channel
+   - Write structured join log (console + optional log channel)
+4. Admins can update role/message settings at runtime via commands.
 
-This system is built to:
+## 2) File Structure
 
-- Guide users through clear stages of creative development
-- Reward consistency, effort, and quality output
-- Enforce role-based progression and earned access
-- Transform raw participation into publishable work
+```text
+.
+├── config/
+│   └── bot.config.json
+├── src/
+│   ├── commands/
+│   │   └── admin.js
+│   ├── config/
+│   │   └── index.js
+│   ├── db/
+│   │   └── index.js
+│   ├── events/
+│   │   └── guildMemberAdd.js
+│   └── index.js
+├── .dockerignore
+├── .env.example
+├── docker-compose.yml
+├── Dockerfile
+├── package.json
+└── README.md
+```
 
-From first bars to finished tracks, every step is intentional.
+## 3) Key Logic Explanation
 
-## 🧠 Core Concept
+- **Auto-role assignment**:
+  - On member join, bot resolves the role by name and assigns it.
+- **Welcome message**:
+  - Template supports placeholders: `{user}`, `{server}`, `{role}`.
+- **Join logging**:
+  - Console logs always emitted.
+  - Optional log sent to `LOG_CHANNEL_NAME` channel if found.
+- **Config strategy**:
+  - `config/bot.config.json` provides default values.
+  - Admin commands override values into SQLite for persistent runtime customization.
+- **Security**:
+  - Bot token never hardcoded; loaded from `DISCORD_BOT_TOKEN`.
 
-The Hustle operates on progression:
+## Setup Instructions
 
-Fresh Ink → Bar Spitter → Hook Runner → Verse Builder → Track Architect → Showcase Ready → Inner Circle
+### Prerequisites
+- Node.js 20+
+- Discord bot application/token
+- Discord server where bot has permissions:
+  - Manage Roles
+  - Send Messages
+  - Read Message History
+  - View Channels
 
-Access is not given.  
-It is earned.
+### Local Setup
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+2. Create environment file:
+   ```bash
+   cp .env.example .env
+   ```
+3. Edit `.env` with your values:
+   ```env
+   DISCORD_BOT_TOKEN=your_discord_bot_token
+   DISCORD_GUILD_ID=your_guild_id
+   WELCOME_CHANNEL_NAME=welcome
+   LOG_CHANNEL_NAME=join-logs
+   COMMAND_PREFIX=!
+   ```
+4. Ensure your Discord server has the role configured in `config/bot.config.json`.
+5. Start bot:
+   ```bash
+   npm start
+   ```
 
-## ⚙️ What This Repo Contains
+### Admin Commands
+- `!showconfig` → Show current runtime config
+- `!setautorole <role name>` → Update auto-assigned role
+- `!setwelcome <message>` → Update welcome message template
 
-- Discord bot (Node.js + discord.js)
-- Role-based progression engine
-- Activity tracking system
-- Onboarding flow
-- Moderation and logging foundation
-- Config-driven architecture
-- Docker + Docker Compose setup
+### Docker Setup
 
-## 🧱 Philosophy
+1. Create `.env` from `.env.example`.
+2. Build and run:
+   ```bash
+   docker compose up -d --build
+   ```
+3. Follow logs:
+   ```bash
+   docker compose logs -f discord-bot
+   ```
 
-This is not a chatroom.
+Persistent data is stored in Docker volume `bot_data` (`/app/data/bot.db`).
 
-This is a system.
-
-Structure creates discipline.  
-Discipline produces output.  
-Output builds identity.
-
-## 🚀 Future Direction
-
-This bot is designed as the foundation for a larger ecosystem:
-
-- Discord → N8N → Discourse → WordPress pipelines
-- AI-assisted lyric review
-- Content publishing workflows
-- External dashboards and analytics
-
-The Hustle is built to scale beyond Discord.
-
----
-
-More details coming as the system evolves.
+## Notes
+- If the configured role or channels are missing, the bot logs warnings instead of crashing.
+- Enable `Server Members Intent` and `Message Content Intent` in Discord Developer Portal.
