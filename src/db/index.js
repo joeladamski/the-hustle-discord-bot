@@ -5,7 +5,8 @@ const { initSettingsTable, getSetting, upsertSetting } = require('./settings');
 const {
   initUsersTable,
   upsertUser,
-  incrementUserActivity,
+  incrementUserMessageCount,
+  setUserRoleLevel,
   getUserStats,
   listTopActiveUsers
 } = require('./users');
@@ -27,7 +28,8 @@ module.exports = {
   getSetting,
   upsertSetting,
   upsertUser,
-  incrementUserActivity,
+  incrementUserMessageCount,
+  setUserRoleLevel,
   getUserStats,
   listTopActiveUsers
 };

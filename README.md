@@ -1,9 +1,10 @@
 # The Hustle Discord Bot (Node.js + discord.js)
 
-Production-ready onboarding bot for Discord with:
+Production-ready Discord bot with onboarding + role progression:
 - Auto-role assignment for new users
-- Welcome message delivery
-- Join event logging
+- Message-based role progression and automatic promotions
+- Promotion logging (console + Discord channel)
+- Admin controls for progression and stats
 - Config file defaults + runtime overrides stored in SQLite
 - Environment variable based secret management
 - Dockerized deployment
@@ -13,25 +14,27 @@ Production-ready onboarding bot for Discord with:
 ### Components
 - **Discord Gateway Client (`src/index.js`)**
   - Connects to Discord
-  - Registers event handlers and admin command handling
+  - Handles join events, message events, promotion checks, and admin commands
 - **Config Layer (`config/bot.config.json` + `src/config/index.js`)**
-  - Static defaults for role, welcome message, admin role
-- **Persistence Layer (`src/db/index.js`, SQLite)**
-  - Stores mutable runtime settings (`autoRoleName`, `welcomeMessage`)
-- **Join Workflow (`src/events/guildMemberAdd.js`)**
-  - Handles role assignment, welcome posting, and logging
+  - Defines progression roles, admin role, and logging defaults
+- **Persistence Layer (`src/db/index.js`, `src/db/users.js`, SQLite)**
+  - Stores user `message_count`, `role_level`, and runtime settings
+- **Progression Service (`src/services/progression.js`)**
+  - Calculates eligibility and applies promotion roles via Discord API
 - **Admin Command Layer (`src/commands/admin.js`)**
-  - `!setautorole`, `!setwelcome`, `!showconfig`
+  - `!promote`, `!demote`, `!userstats`, `!topactivity`, config commands
 
 ### Runtime Data Flow
-1. Bot starts and loads static config.
-2. DB initializes and seeds defaults if not present.
-3. On `guildMemberAdd`:
-   - Load current settings from DB
-   - Assign configured role
-   - Send welcome message to configured welcome channel
-   - Write structured join log (console + optional log channel)
-4. Admins can update role/message settings at runtime via commands.
+1. Bot starts, loads static config, initializes DB schema.
+2. On `guildMemberAdd`:
+   - Ensure user exists in DB.
+   - Assign starter role.
+   - Send welcome + join logs.
+3. On each `messageCreate`:
+   - Increment `message_count` in SQLite.
+   - Compute eligible progression level from thresholds.
+   - If level increases, assign new Discord role, persist `role_level`, and log promotion.
+4. Admin commands support manual promotions/demotions and user stats lookup.
 
 ## 2) File Structure
 
@@ -45,12 +48,13 @@ Production-ready onboarding bot for Discord with:
 │   ├── config/
 │   │   └── index.js
 │   ├── db/
-│   │   └── index.js
+│   │   ├── index.js
+│   │   └── users.js
 │   ├── events/
 │   │   └── guildMemberAdd.js
+│   ├── services/
+│   │   └── progression.js
 │   └── index.js
-├── .dockerignore
-├── .env.example
 ├── docker-compose.yml
 ├── Dockerfile
 ├── package.json
@@ -59,25 +63,28 @@ Production-ready onboarding bot for Discord with:
 
 ## 3) Key Logic Explanation
 
-- **Auto-role assignment**:
-  - On member join, bot resolves the role by name and assigns it.
-- **Welcome message**:
-  - Template supports placeholders: `{user}`, `{server}`, `{role}`.
-- **Join logging**:
-  - Console logs always emitted.
-  - Optional log sent to `LOG_CHANNEL_NAME` channel if found.
-- **Config strategy**:
-  - `config/bot.config.json` provides default values.
-  - Admin commands override values into SQLite for persistent runtime customization.
-- **Security**:
-  - Bot token never hardcoded; loaded from `DISCORD_BOT_TOKEN`.
+- **Progression model**:
+  - Role definitions live in `config/bot.config.json` as ordered `progressionRoles` with:
+    - `level`
+    - `name`
+    - `minMessages`
+- **Promotion metric**:
+  - `message_count` is incremented on every non-bot guild message.
+- **Duplicate promotion protection**:
+  - Auto-promotion only runs when `eligibleLevel > current role_level`.
+- **Promotion assignment**:
+  - Bot removes other configured progression roles and assigns the target role.
+- **Persistence**:
+  - SQLite stores `role_level` + `message_count` for each user.
+- **Admin controls**:
+  - `!promote <user> [level]`, `!demote <user> [level]`, `!userstats`, `!topactivity`.
 
 ## Setup Instructions
 
 ### Prerequisites
 - Node.js 20+
 - Discord bot application/token
-- Discord server where bot has permissions:
+- Discord bot permissions:
   - Manage Roles
   - Send Messages
   - Read Message History
@@ -88,43 +95,23 @@ Production-ready onboarding bot for Discord with:
    ```bash
    npm install
    ```
-2. Create environment file:
-   ```bash
-   cp .env.example .env
-   ```
-3. Edit `.env` with your values:
+2. Configure environment variables:
    ```env
    DISCORD_BOT_TOKEN=your_discord_bot_token
-   DISCORD_GUILD_ID=your_guild_id
    WELCOME_CHANNEL_NAME=welcome
    LOG_CHANNEL_NAME=join-logs
    COMMAND_PREFIX=!
    ```
-4. Ensure your Discord server has the role configured in `config/bot.config.json`.
-5. Start bot:
+3. Ensure Discord roles exist for every `progressionRoles[].name`.
+4. Run bot:
    ```bash
    npm start
    ```
 
-### Admin Commands
-- `!showconfig` → Show current runtime config
-- `!setautorole <role name>` → Update auto-assigned role
-- `!setwelcome <message>` → Update welcome message template
-
 ### Docker Setup
+```bash
+docker compose up -d --build
+docker compose logs -f discord-bot
+```
 
-1. Create `.env` from `.env.example`.
-2. Build and run:
-   ```bash
-   docker compose up -d --build
-   ```
-3. Follow logs:
-   ```bash
-   docker compose logs -f discord-bot
-   ```
-
-Persistent data is stored in Docker volume `bot_data` (`/app/data/bot.db`).
-
-## Notes
-- If the configured role or channels are missing, the bot logs warnings instead of crashing.
-- Enable `Server Members Intent` and `Message Content Intent` in Discord Developer Portal.
+Persistent data is stored in `bot_data` volume (`/app/data/bot.db`).

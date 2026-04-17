@@ -1,5 +1,13 @@
 {
   "autoRoleName": "Fresh Ink",
   "welcomeMessage": "Welcome {user} to **{server}**! You have been assigned the **{role}** role. Start introducing yourself and drop your first bars.",
-  "adminRoleName": "Admin"
+  "adminRoleName": "Admin",
+  "promotionLogChannelName": "level-ups",
+  "progressionRoles": [
+    { "level": 1, "name": "Fresh Ink", "minMessages": 0 },
+    { "level": 2, "name": "Bar Spitter", "minMessages": 25 },
+    { "level": 3, "name": "Mic Controller", "minMessages": 75 },
+    { "level": 4, "name": "Cypher King", "minMessages": 200 },
+    { "level": 5, "name": "Rap Royalty", "minMessages": 500 }
+  ]
 }
