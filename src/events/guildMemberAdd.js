@@ -2,6 +2,13 @@ async function onGuildMemberAdd(member, context) {
   const { dbApi, logger, welcomeChannelName, logChannelName } = context;
 
   const autoRoleName = await dbApi.getAutoRoleName();
+
+  await dbApi.ensureUser({
+    userId: member.user.id,
+    username: member.user.tag,
+    roleLevel: 1
+  });
+
   const welcomeTemplate = await dbApi.getWelcomeMessage();
 
   const role = member.guild.roles.cache.find((r) => r.name === autoRoleName);
