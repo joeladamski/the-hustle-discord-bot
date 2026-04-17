@@ -10,12 +10,14 @@ const {
   getSetting,
   upsertSetting,
   upsertUser,
-  incrementUserActivity,
+  incrementUserMessageCount,
+  setUserRoleLevel,
   getUserStats,
   listTopActiveUsers
 } = require('./db');
 const { onGuildMemberAdd } = require('./events/guildMemberAdd');
 const { handleAdminCommands } = require('./commands/admin');
+const { evaluateAndApplyPromotion } = require('./services/progression');
 
 const token = process.env.DISCORD_BOT_TOKEN;
 const commandPrefix = process.env.COMMAND_PREFIX || '!';
@@ -70,8 +72,11 @@ const dbApi = {
   async ensureUser(user) {
     await upsertUser(db, user);
   },
-  async incrementActivity(user, amount = 1) {
-    await incrementUserActivity(db, { ...user, amount });
+  async incrementMessageCount(user, amount = 1) {
+    await incrementUserMessageCount(db, { ...user, amount });
+  },
+  async setRoleLevel(userId, roleLevel, username) {
+    await setUserRoleLevel(db, { userId, roleLevel, username });
   },
   async fetchUserStats(userId) {
     return getUserStats(db, userId);
@@ -116,16 +121,27 @@ async function start() {
     }
 
     try {
-      await dbApi.incrementActivity({
+      await dbApi.incrementMessageCount({
         userId: message.author.id,
         username: message.author.tag,
         roleLevel: 1
       });
 
+      const stats = await dbApi.fetchUserStats(message.author.id);
+      await evaluateAndApplyPromotion(message.member, stats, {
+        progressionRoles: staticConfig.progressionRoles,
+        dbApi,
+        logger,
+        promotionLogChannelName: staticConfig.promotionLogChannelName,
+        reason: 'automatic'
+      });
+
       await handleAdminCommands(message, {
         prefix: commandPrefix,
         adminRoleName: staticConfig.adminRoleName,
-        dbApi
+        dbApi,
+        progressionRoles: staticConfig.progressionRoles,
+        logger
       });
     } catch (error) {
       logger.error(`[COMMAND] Error processing command: ${error.message}`);
